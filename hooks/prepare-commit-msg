@@ -1,0 +1,30 @@
+#!/bin/sh
+# Remove atribuicao de IA da mensagem de commit.
+#
+# Instalado globalmente via core.hooksPath. Config LOCAL de um repo
+# (ex.: husky, que grava core.hooksPath=.husky) tem precedencia e
+# desliga este hook naquele repo -- por isso o encadeamento no fim.
+
+MSG="$1"
+[ -f "$MSG" ] || exit 0
+
+# Tira: trailer Co-Authored-By de Claude/Anthropic/noreply, a linha
+# "Generated with Claude Code" e o link do claude.com que vem junto.
+# Co-autoria humana legitima e preservada de proposito.
+TMP="$MSG.noai"
+grep -v -i -E \
+  -e '^[[:space:]]*Co-[Aa]uthored-[Bb]y:.*(claude|anthropic|noreply@anthropic)' \
+  -e '^[[:space:]]*🤖[[:space:]]*Generated with' \
+  -e '^[[:space:]]*Generated with \[?Claude Code' \
+  "$MSG" > "$TMP" && mv "$TMP" "$MSG"
+
+# Encadeia um hook local do repo, se houver.
+# ATENCAO: usar --git-dir, NAO --git-path: este ultimo respeita
+# core.hooksPath e devolveria ESTE arquivo, causando recursao infinita.
+GITDIR="$(git rev-parse --git-dir 2>/dev/null)" || exit 0
+LOCAL="$GITDIR/hooks/prepare-commit-msg"
+SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+if [ -x "$LOCAL" ] && [ "$(cd "$(dirname "$LOCAL")" && pwd)/$(basename "$LOCAL")" != "$SELF" ]; then
+  exec "$LOCAL" "$@"
+fi
+exit 0

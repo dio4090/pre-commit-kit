@@ -1,0 +1,43 @@
+# Checagens locais baratas. O gate de verdade e o CI -- aqui so se evita gastar um
+# ciclo dele com bobagem, e se impede que segredo saia da maquina.
+#
+# Pular um hook pontualmente:  SKIP=nome-do-hook git commit ...
+# Nunca use --no-verify: ele desliga tudo de uma vez, inclusive o gitleaks.
+
+default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [pre-commit]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: detect-private-key
+      - id: mixed-line-ending
+      # Trabalho nasce em branch de feature. As de ambiente sao destino, nao origem.
+      # Ajuste os nomes para os do seu fluxo.
+      - id: no-commit-to-branch
+        args: [--branch, main, --branch, dsv, --branch, hmg, --branch, prd]
+
+  # Unico hook de seguranca que vale o custo no commit: segredo que entra no
+  # historico so sai reescrevendo historico, e reescrever historico de uma branch
+  # compartilhada costuma estar fora de questao.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: sem-coautoria
+        name: sem co-autoria na mensagem
+        entry: bash -c 'grep -qiE "^[[:space:]]*Co-[Aa]uthored-[Bb]y:" "$1" && { echo "Mensagem contem Co-Authored-By. Remova antes de commitar."; exit 1; }; exit 0' --
+        language: system
+        stages: [commit-msg]
